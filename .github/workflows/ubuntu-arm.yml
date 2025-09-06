@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Vulkan SDK version (e.g., 1.4.314.0)'
+        description: 'Vulkan SDK version (e.g., 1.4.304.1)'
         required: false
         default: 'latest'
 
