@@ -1,3 +1,3 @@
-# vulkan-sdk-builds
+# gstaichi-sdk-builds
 
-For building Vulkan SDK. (Under development).
+For building SDKs needed by gstaichi CI.
