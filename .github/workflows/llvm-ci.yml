@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-22.04-arm64, macos-14, windows-2022]
+        os: [ubuntu-22.04, ubuntu-22.04-arm64, macos-15, windows-2025]
 
     defaults:
       run:
@@ -107,14 +107,6 @@ jobs:
           git fetch --depth 1 origin "${LLVM_PIN}"
           git checkout FETCH_HEAD
 
-          # Apply patch if present (do not fail if missing)
-          if [[ -f /tmp/triton/llvm_sm110_patch.diff ]]; then
-            echo "Applying /tmp/triton/llvm_sm110_patch.diff"
-            git apply /tmp/triton/llvm_sm110_patch.diff
-          else
-            echo "NOTE: Patch file /tmp/triton/llvm_sm110_patch.diff not found; continuing without it."
-          fi
-
           # Python deps for MLIR
           python3 -m pip install -r ./mlir/python/requirements.txt
 
@@ -126,7 +118,7 @@ jobs:
 
           # Generator selection (Ninja)
           # On Windows, prefer the Python-provided Ninja if not on PATH
-          if [[ "${{ matrix.os }}" == "windows-2022" ]]; then
+          if [[ "${{ matrix.os }}" == "windows-2025" ]]; then
             export PATH="$HOME/AppData/Roaming/Python/Python*/Scripts:$PATH"
           fi
 
