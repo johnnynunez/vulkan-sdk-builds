@@ -1,0 +1,158 @@
+name: Build LLVM (matrix)
+
+on:
+  workflow_dispatch:
+    inputs:
+      llvm_pin:
+        description: "Commit SHA (or ref) to fetch from llvm/llvm-project"
+        required: true
+        type: string
+
+  push:
+    branches: [ main ]
+  pull_request:
+
+env:
+  # Used by your script below; workflow_dispatch input takes precedence when triggered manually.
+  LLVM_PIN: ${{ inputs.llvm_pin }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm64, macos-14, windows-2022]
+
+    defaults:
+      run:
+        # Use bash everywhere so your script is the same on each runner
+        shell: bash
+
+    steps:
+      - name: Checkout (sparse)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ---------- Prereqs per OS ----------
+      - name: Install prerequisites (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git python3 python3-pip python3-venv \
+            cmake ninja-build build-essential
+          python3 -m pip install --upgrade pip
+
+      - name: Install prerequisites (macOS)
+        if: matrix.os == 'macos-14'
+        run: |
+          brew update
+          brew install cmake ninja || true
+          # Ensure modern Python available and up-to-date pip
+          python3 -m pip install --upgrade pip
+
+      - name: Install prerequisites (Windows)
+        if: matrix.os == 'windows-2022'
+        shell: pwsh
+        run: |
+          # Rely on preinstalled toolchain; ensure pip packages for Ninja/CMake are present as fallback
+          python -m pip install --upgrade pip
+          python -m pip install ninja cmake
+          git config --global core.autocrlf false
+
+      # ---------- Prepare install prefix (/opt) ----------
+      - name: Prepare /opt install prefix
+        if: matrix.os != 'windows-2022'
+        run: |
+          sudo mkdir -p /opt/llvm-project/install
+          sudo chown -R "$USER":"$USER" /opt/llvm-project
+
+      - name: Prepare install prefix (Windows)
+        if: matrix.os == 'windows-2022'
+        run: |
+          # Use a writable path on Windows; keep your given prefix for other OSes.
+          echo "CMAKE_INSTALL_PREFIX=${GITHUB_WORKSPACE}/llvm-project/install" >> $GITHUB_ENV
+
+      # ---------- Build ----------
+      - name: Build LLVM/MLIR with Ninja
+        env:
+          # If Windows step set CMAKE_INSTALL_PREFIX above, use it; otherwise default to /opt path.
+          CMAKE_INSTALL_PREFIX: ${{ env.CMAKE_INSTALL_PREFIX || '/opt/llvm-project/install' }}
+        run: |
+          set -euo pipefail
+
+          echo "LLVM_PIN=${LLVM_PIN:-''}"
+          if [[ -z "${LLVM_PIN:-}" ]]; then
+            echo "ERROR: LLVM_PIN is not set. Provide it via workflow_dispatch input 'llvm_pin' or env."
+            exit 2
+          fi
+
+          mkdir -p llvm-project
+          cd llvm-project
+          git init
+          git remote add origin https://github.com/llvm/llvm-project.git
+          # fetch a single commit (depth 1) for the provided pin
+          git fetch --depth 1 origin "${LLVM_PIN}"
+          git checkout FETCH_HEAD
+
+          # Apply patch if present (do not fail if missing)
+          if [[ -f /tmp/triton/llvm_sm110_patch.diff ]]; then
+            echo "Applying /tmp/triton/llvm_sm110_patch.diff"
+            git apply /tmp/triton/llvm_sm110_patch.diff
+          else
+            echo "NOTE: Patch file /tmp/triton/llvm_sm110_patch.diff not found; continuing without it."
+          fi
+
+          # Python deps for MLIR
+          python3 -m pip install -r ./mlir/python/requirements.txt
+
+          mkdir -p install build
+          cd build
+
+          # Location of top-level llvm directory within monorepo
+          LLVM_SRC_DIR="../llvm"
+
+          # Generator selection (Ninja)
+          # On Windows, prefer the Python-provided Ninja if not on PATH
+          if [[ "${{ matrix.os }}" == "windows-2022" ]]; then
+            export PATH="$HOME/AppData/Roaming/Python/Python*/Scripts:$PATH"
+          fi
+
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
+            -DLLVM_BUILD_UTILS=ON \
+            -DLLVM_BUILD_TOOLS=ON \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DLLVM_ENABLE_PROJECTS="llvm;clang;lld;mlir" \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" \
+            -DLLVM_ENABLE_TERMINFO=OFF \
+            "${LLVM_SRC_DIR}"
+
+          # Build and run MLIR checks that don't require full runtimes,
+          # then install into the chosen prefix
+          ninja check-mlir-build-only install
+
+      - name: Archive install (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: llvm-install-${{ matrix.os }}
+          path: |
+            /opt/llvm-project/install
+            llvm-project/install
+          if-no-files-found: warn
