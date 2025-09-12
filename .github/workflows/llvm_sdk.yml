@@ -45,7 +45,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      # --- NEW: calm the git default-branch hint ---
+      # --- calm the git default-branch hint ---
       - name: Silence git default-branch hint
         run: git config --global init.defaultBranch main
 
@@ -150,7 +150,7 @@ jobs:
           cmake --build build --target check-mlir
           cmake --build build --target install
 
-      # ---------- NEW: compute package naming ----------
+      # ----------  compute package naming ----------
       - name: Compute package name
         id: pkgmeta
         shell: bash
@@ -168,7 +168,7 @@ jobs:
           echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
           echo "zip=taichi-llvm-21-$suffix.zip" >> "$GITHUB_OUTPUT"
 
-      # ---------- NEW: package (Linux/macOS) ----------
+      # ----------  package (Linux/macOS) ----------
       - name: Package (Linux/macOS)
         if: runner.os != 'Windows'
         env:
@@ -192,7 +192,7 @@ jobs:
           # sha256
           ( cd "${GITHUB_WORKSPACE}" && shasum -a 256 "${{ steps.pkgmeta.outputs.zip }}" > "${{ steps.pkgmeta.outputs.zip }}.sha256" || sha256sum "${{ steps.pkgmeta.outputs.zip }}" > "${{ steps.pkgmeta.outputs.zip }}.sha256" )
 
-      # ---------- NEW: package (Windows) ----------
+      # ----------  package (Windows) ----------
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -215,7 +215,7 @@ jobs:
             ${{ github.workspace }}/${{ steps.pkgmeta.outputs.zip }}.sha256
           if-no-files-found: error
 
-  # ---------- NEW: publish a GitHub Release with all zips ----------
+  # ----------  publish a GitHub Release with all zips ----------
   release:
     name: Publish release ${{ needs.build.outputs.LLVM_PIN }}
     runs-on: ubuntu-22.04
