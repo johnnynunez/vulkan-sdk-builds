@@ -1,0 +1,138 @@
+name: Build LLVM (matrix)
+
+on:
+  workflow_dispatch:
+    inputs:
+      llvm_pin:
+        description: "Commit SHA (or ref) to fetch from llvm/llvm-project"
+        required: false  # Changed to optional
+        default: "main"  # Default to main if not provided
+        type: string
+  push:
+    branches: [ main ]
+  pull_request:
+
+env:
+  # Use input if provided, else default
+  LLVM_PIN: ${{ inputs.llvm_pin || 'main' }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm64, macos-15, windows-2025]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout (sparse)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ---------- Prereqs per OS ----------
+      - name: Install prerequisites (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git python3 python3-pip python3-venv \
+            cmake ninja-build build-essential
+          python3 -m pip install --upgrade pip
+
+      - name: Install prerequisites (macOS)
+        if: startsWith(matrix.os, 'macos-')  # Fixed to match macos-15
+        run: |
+          brew update || true
+          brew install cmake ninja || true
+          python3 -m pip install --upgrade pip
+
+      - name: Install prerequisites (Windows)
+        if: startsWith(matrix.os, 'windows-')  # Fixed to match windows-2025
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ninja cmake
+          git config --global core.autocrlf false
+
+      # ---------- Prepare install prefix (/opt) ----------
+      - name: Prepare /opt install prefix
+        if: '!startsWith(matrix.os, 'windows-')'  # Fixed condition
+        run: |
+          sudo mkdir -p /opt/llvm-project/install
+          sudo chown -R "$USER":"$USER" /opt/llvm-project
+
+      - name: Prepare install prefix (Windows)
+        if: startsWith(matrix.os, 'windows-')
+        run: |
+          echo "CMAKE_INSTALL_PREFIX=${GITHUB_WORKSPACE}/llvm-project/install" >> $GITHUB_ENV
+
+      # ---------- Build ----------
+      - name: Build LLVM/MLIR with Ninja
+        env:
+          CMAKE_INSTALL_PREFIX: ${{ env.CMAKE_INSTALL_PREFIX || '/opt/llvm-project/install' }}
+        run: |
+          set -euo pipefail
+
+          echo "Using LLVM_PIN=${LLVM_PIN}"
+          if [[ -z "${LLVM_PIN}" ]]; then
+            echo "ERROR: LLVM_PIN is not set."
+            exit 2
+          fi
+
+          mkdir -p llvm-project
+          cd llvm-project
+          git init
+          git remote add origin https://github.com/llvm/llvm-project.git
+          git fetch --depth 1 origin "${LLVM_PIN}"
+          git checkout FETCH_HEAD
+
+          python3 -m pip install -r ./mlir/python/requirements.txt || echo "Warning: Failed to install MLIR Python deps"
+
+          mkdir -p install build
+          cd build
+
+          LLVM_SRC_DIR="../llvm"
+
+          if [[ "${{ matrix.os }}" == "windows-2025" ]]; then
+            $env:PATH = "$HOME\AppData\Roaming\Python\Python*\Scripts;" + $env:PATH
+          fi
+
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
+            -DLLVM_BUILD_UTILS=ON \
+            -DLLVM_BUILD_TOOLS=ON \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DLLVM_ENABLE_PROJECTS="llvm;clang;lld;mlir" \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" \
+            -DLLVM_ENABLE_TERMINFO=OFF \
+            "${LLVM_SRC_DIR}"
+
+          ninja check-mlir-build-only install
+
+      - name: Archive install (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: llvm-install-${{ matrix.os }}
+          path: |
+            /opt/llvm-project/install
+            llvm-project/install
+          if-no-files-found: warn
