@@ -23,14 +23,13 @@ jobs:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
-
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, windows-2025]
 
-    # Fallback order: manual input → repo/org variable → default stable tag
     env:
+      # manual input → repo/org var → default
       LLVM_PIN: ${{ github.event.inputs.llvm_pin || vars.LLVM_PIN || 'llvmorg-21.1.1' }}
 
     defaults:
@@ -46,19 +45,25 @@ jobs:
         with:
           python-version: '3.11'
 
+      # --- calm the git default-branch hint ---
+      - name: Silence git default-branch hint
+        run: git config --global init.defaultBranch main
+
       # ---------- Prereqs ----------
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends git cmake ninja-build build-essential
+          sudo apt-get install -y --no-install-recommends git cmake ninja-build build-essential zip
           python -m pip install --upgrade pip
+
       - name: Install prerequisites (macOS)
         if: runner.os == 'macOS'
         run: |
           brew update
           brew install cmake ninja || true
           python3 -m pip install --upgrade pip
+
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -66,6 +71,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ninja cmake
           git config --global core.autocrlf false
+
       # ---------- Compute install prefix ----------
       - name: Compute install prefix
         id: prefix
@@ -76,6 +82,7 @@ jobs:
           else
             echo "prefix=${RUNNER_TEMP}/llvm-install" >> "$GITHUB_OUTPUT"
           fi
+
       # ---------- Build *nix ----------
       - name: Build (Linux & macOS)
         if: runner.os != 'Windows'
@@ -84,13 +91,16 @@ jobs:
         run: |
           set -euo pipefail
           echo "Using LLVM_PIN=${LLVM_PIN}"
+
           mkdir -p llvm-project
           cd llvm-project
           git init
           git remote add origin https://github.com/llvm/llvm-project.git
           git fetch --depth 1 origin "${LLVM_PIN}"
           git checkout --detach FETCH_HEAD
+
           python3 -m pip install -r mlir/python/requirements.txt
+
           cmake -S llvm -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
@@ -101,9 +111,11 @@ jobs:
             -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
             -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" \
             -DLLVM_ENABLE_TERMINFO=OFF
+
           cmake --build build --target all -- -k 0
           cmake --build build --target check-mlir
           cmake --build build --target install
+
       # ---------- Build Windows ----------
       - name: Build (Windows)
         if: runner.os == 'Windows'
@@ -113,13 +125,16 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           Write-Host "Using LLVM_PIN=$env:LLVM_PIN"
+
           New-Item -ItemType Directory -Force -Path llvm-project | Out-Null
           Set-Location llvm-project
           git init
           git remote add origin https://github.com/llvm/llvm-project.git
           git fetch --depth 1 origin "$env:LLVM_PIN"
           git checkout --detach FETCH_HEAD
+
           python -m pip install -r mlir/python/requirements.txt
+
           cmake -S llvm -B build -G "Ninja" `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX="$env:CMAKE_INSTALL_PREFIX" `
@@ -130,14 +145,102 @@ jobs:
             -DMLIR_ENABLE_BINDINGS_PYTHON=ON `
             -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" `
             -DLLVM_ENABLE_TERMINFO=OFF
+
           cmake --build build --target all
           cmake --build build --target check-mlir
           cmake --build build --target install
-      # ---------- Artifact ----------
-      - name: Archive install (artifact)
-        if: always()
+
+      # ----------  compute package naming ----------
+      - name: Compute package name
+        id: pkgmeta
+        shell: bash
+        run: |
+          set -euo pipefail
+          os="${RUNNER_OS}"
+          arch="$(uname -m || true)"
+          case "$os" in
+            Linux)
+              if [ "$arch" = "aarch64" ] || [ "$arch" = "arm64" ]; then suffix="linux-aarch64"; else suffix="linux-x86_64"; fi
+              ;;
+            macOS)  suffix="macos-arm64" ;; # macos-15 runners are Apple Silicon
+            Windows) suffix="windows-amd64" ;;
+          esac
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
+          echo "zip=taichi-llvm-21-$suffix.zip" >> "$GITHUB_OUTPUT"
+
+      # ----------  package (Linux/macOS) ----------
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        env:
+          CMAKE_INSTALL_PREFIX: ${{ steps.prefix.outputs.prefix }}
+        run: |
+          set -euo pipefail
+          pkgroot="${RUNNER_TEMP}/taichi-llvm-21-${{ steps.pkgmeta.outputs.suffix }}"
+          mkdir -p "$pkgroot"
+          # copy install tree
+          cp -R "${CMAKE_INSTALL_PREFIX}/." "$pkgroot/"
+          # bundle license
+          cp llvm-project/LICENSE.TXT "$pkgroot/LLVM-LICENSE.txt" || true
+          # optional strip to shrink size
+          if [ -x "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" ]; then
+            find "$pkgroot/bin" -type f -exec "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" --strip-unneeded {} + || true
+            find "$pkgroot/lib" -type f \( -name "*.so*" -o -name "*.dylib" -o -name "*.a" \) \
+              -exec "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" --strip-unneeded {} + || true
+          fi
+          ( cd "${RUNNER_TEMP}" && zip -r "${GITHUB_WORKSPACE}/${{ steps.pkgmeta.outputs.zip }}" \
+              "taichi-llvm-21-${{ steps.pkgmeta.outputs.suffix }}" )
+          # sha256
+          ( cd "${GITHUB_WORKSPACE}" && shasum -a 256 "${{ steps.pkgmeta.outputs.zip }}" > "${{ steps.pkgmeta.outputs.zip }}.sha256" || sha256sum "${{ steps.pkgmeta.outputs.zip }}" > "${{ steps.pkgmeta.outputs.zip }}.sha256" )
+
+      # ----------  package (Windows) ----------
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CMAKE_INSTALL_PREFIX: ${{ steps.prefix.outputs.prefix }}
+        run: |
+          $zip = "${{ steps.pkgmeta.outputs.zip }}"
+          # Zip contents at root (strip=0 expectation)
+          Compress-Archive -Path "$env:CMAKE_INSTALL_PREFIX\*" -DestinationPath "$pwd\$zip" -Force
+          # SHA256
+          CertUtil -hashfile "$pwd\$zip" SHA256 | Out-File -FilePath "$pwd\$zip.sha256" -Encoding ascii
+
+      # ---------- Upload artifacts (for aggregator) ----------
+      - name: Upload packaged asset
         uses: actions/upload-artifact@v4
         with:
-          name: llvm-install-${{ matrix.os }}
-          path: ${{ steps.prefix.outputs.prefix }}
-          if-no-files-found: warn
+          name: ${{ steps.pkgmeta.outputs.zip }}
+          path: |
+            ${{ github.workspace }}/${{ steps.pkgmeta.outputs.zip }}
+            ${{ github.workspace }}/${{ steps.pkgmeta.outputs.zip }}.sha256
+          if-no-files-found: error
+
+  # ----------  publish a GitHub Release with all zips ----------
+  release:
+    name: Publish release ${{ needs.build.outputs.LLVM_PIN }}
+    runs-on: ubuntu-22.04
+    needs: build
+    permissions:
+      contents: write
+    env:
+      LLVM_PIN: ${{ github.event.inputs.llvm_pin || vars.LLVM_PIN || 'llvmorg-21.1.1' }}
+    steps:
+      - name: Download all assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List assets
+        run: ls -R dist
+
+      - name: Create/Update release (tag = LLVM_PIN)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.LLVM_PIN }}
+          name: LLVM assets for ${{ env.LLVM_PIN }}
+          body: |
+            Prebuilt LLVM/Clang/LLD/MLIR install trees for Taichi consumption.
+            Tag: ${{ env.LLVM_PIN }}
+          files: |
+            dist/**/taichi-llvm-21-*.zip
+            dist/**/taichi-llvm-21-*.zip.sha256
