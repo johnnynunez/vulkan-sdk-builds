@@ -71,7 +71,7 @@ jobs:
 
       # ---------- Prepare install prefix (/opt) ----------
       - name: Prepare /opt install prefix
-        if: '!startsWith(matrix.os, 'windows-')'  # Fixed condition
+        if: startsWith(matrix.os, 'windows-')
         run: |
           sudo mkdir -p /opt/llvm-project/install
           sudo chown -R "$USER":"$USER" /opt/llvm-project
