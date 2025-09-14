@@ -3,10 +3,10 @@ name: Build LLVM (matrix)
 on:
   workflow_dispatch:
     inputs:
-      llvm_tag:
-        description: "Commit SHA, tag (e.g. llvmorg-21.1.1), or ref for llvm/llvm-project"
+      llvm_version:
+        description: "e.g. 15.0.7, 21.1.1, etc"
         required: false
-        default: llvmorg-15.0.7
+        default: 15.0.7
   pull_request:
     paths:
      - '.github/workflows/llvm-ci.yml'
@@ -30,7 +30,7 @@ jobs:
 
     env:
       # manual input → repo/org var → default
-      LLVM_TAG: ${{ github.event.inputs.llvm_tag || vars.LLVM_TAG || 'llvmorg-15.0.7' }}
+      LLVM_TAG: llvmorg-${{ github.event.inputs.llvm_version || vars.LLVM_TAG || '15.0.7' }}
 
     defaults:
       run:
@@ -156,7 +156,7 @@ jobs:
             Windows) suffix="windows-amd64" ;;
           esac
           echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
-          echo "zip=taichi-llvm-21-$suffix.zip" >> "$GITHUB_OUTPUT"
+          echo "zip=taichi-llvm-${{ github.event.inputs.llvm_version }}-$suffix.zip" >> "$GITHUB_OUTPUT"
 
       # ----------  package (Linux/macOS) ----------
       - name: Package (Linux/macOS)
@@ -165,7 +165,7 @@ jobs:
           CMAKE_INSTALL_PREFIX: ${{ steps.prefix.outputs.prefix }}
         run: |
           set -euo pipefail
-          pkgroot="${RUNNER_TEMP}/taichi-llvm-21-${{ steps.pkgmeta.outputs.suffix }}"
+          pkgroot="${RUNNER_TEMP}/taichi-llvm-${{ github.event.inputs.llvm_version }}-${{ steps.pkgmeta.outputs.suffix }}"
           mkdir -p "$pkgroot"
           # copy install tree
           cp -R "${CMAKE_INSTALL_PREFIX}/." "$pkgroot/"
@@ -178,7 +178,7 @@ jobs:
               -exec "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" --strip-unneeded {} + || true
           fi
           ( cd "${RUNNER_TEMP}" && zip -r "${GITHUB_WORKSPACE}/${{ steps.pkgmeta.outputs.zip }}" \
-              "taichi-llvm-21-${{ steps.pkgmeta.outputs.suffix }}" )
+              "taichi-llvm-${{ github.event.inputs.llvm_version }}-${{ steps.pkgmeta.outputs.suffix }}" )
           # sha256
           ( cd "${GITHUB_WORKSPACE}" && shasum -a 256 "${{ steps.pkgmeta.outputs.zip }}" > "${{ steps.pkgmeta.outputs.zip }}.sha256" || sha256sum "${{ steps.pkgmeta.outputs.zip }}" > "${{ steps.pkgmeta.outputs.zip }}.sha256" )
 
@@ -214,7 +214,7 @@ jobs:
   #   permissions:
   #     contents: write
   #   env:
-  #     LLVM_TAG: ${{ github.event.inputs.llvm_tag || vars.LLVM_TAG || 'llvmorg-21.1.1' }}
+  #     LLVM_TAG: llvmorg-${{ github.event.inputs.llvm_version || vars.LLVM_TAG || '15.0.7' }}
   #   steps:
   #     - name: Download all assets
   #       uses: actions/download-artifact@v4
@@ -233,5 +233,5 @@ jobs:
   #           Prebuilt LLVM/Clang/LLD/MLIR install trees for Taichi consumption.
   #           Tag: ${{ env.LLVM_TAG }}
   #         files: |
-  #           dist/**/taichi-llvm-21-*.zip
-  #           dist/**/taichi-llvm-21-*.zip.sha256
+  #           dist/**/taichi-llvm-${{ github.event.inputs.llvm_version }}-*.zip
+  #           dist/**/taichi-llvm-${{ github.event.inputs.llvm_version }}-*.zip.sha256
