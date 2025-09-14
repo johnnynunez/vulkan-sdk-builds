@@ -3,13 +3,13 @@ name: Build LLVM (matrix)
 on:
   workflow_dispatch:
     inputs:
-      llvm_pin:
+      llvm_tag:
         description: "Commit SHA, tag (e.g. llvmorg-21.1.1), or ref for llvm/llvm-project"
         required: false
-        default: llvmorg-21.1.1
-  push:
-    branches: [ main ]
+        default: llvmorg-15.0.7
   pull_request:
+    paths:
+     - '.github/workflows/llvm-ci.yml'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
 
     env:
       # manual input → repo/org var → default
-      LLVM_PIN: ${{ github.event.inputs.llvm_pin || vars.LLVM_PIN || 'llvmorg-21.1.1' }}
+      LLVM_TAG: ${{ github.event.inputs.llvm_tag || vars.LLVM_TAG || 'llvmorg-15.0.7' }}
 
     defaults:
       run:
@@ -43,7 +43,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
       # --- calm the git default-branch hint ---
       - name: Silence git default-branch hint
@@ -90,13 +90,13 @@ jobs:
           CMAKE_INSTALL_PREFIX: ${{ steps.prefix.outputs.prefix }}
         run: |
           set -euo pipefail
-          echo "Using LLVM_PIN=${LLVM_PIN}"
+          echo "Using LLVM_TAG=${LLVM_TAG}"
 
           mkdir -p llvm-project
           cd llvm-project
           git init
           git remote add origin https://github.com/llvm/llvm-project.git
-          git fetch --depth 1 origin "${LLVM_PIN}"
+          git fetch --depth 1 origin "${LLVM_TAG}"
           git checkout --detach FETCH_HEAD
 
           python3 -m pip install -r mlir/python/requirements.txt
@@ -124,13 +124,13 @@ jobs:
           CMAKE_INSTALL_PREFIX: ${{ steps.prefix.outputs.prefix }}
         run: |
           $ErrorActionPreference = 'Stop'
-          Write-Host "Using LLVM_PIN=$env:LLVM_PIN"
+          Write-Host "Using LLVM_TAG=$env:LLVM_TAG"
 
           New-Item -ItemType Directory -Force -Path llvm-project | Out-Null
           Set-Location llvm-project
           git init
           git remote add origin https://github.com/llvm/llvm-project.git
-          git fetch --depth 1 origin "$env:LLVM_PIN"
+          git fetch --depth 1 origin "$env:LLVM_TAG"
           git checkout --detach FETCH_HEAD
 
           python -m pip install -r mlir/python/requirements.txt
@@ -139,15 +139,13 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX="$env:CMAKE_INSTALL_PREFIX" `
             -DLLVM_ENABLE_ASSERTIONS=ON `
-            -DLLVM_BUILD_UTILS=ON -DLLVM_BUILD_TOOLS=ON `
-            -DLLVM_INSTALL_UTILS=ON `
-            -DLLVM_ENABLE_PROJECTS="clang;lld;mlir" `
+            -DLLVM_ENABLE_PROJECTS="clang" `
+            -DLLVM_ENABLE_RTTI:BOOL=ON `
             -DMLIR_ENABLE_BINDINGS_PYTHON=ON `
             -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" `
             -DLLVM_ENABLE_TERMINFO=OFF
 
           cmake --build build --target all
-          cmake --build build --target check-mlir
           cmake --build build --target install
 
       # ----------  compute package naming ----------
@@ -215,32 +213,33 @@ jobs:
             ${{ github.workspace }}/${{ steps.pkgmeta.outputs.zip }}.sha256
           if-no-files-found: error
 
-  # ----------  publish a GitHub Release with all zips ----------
-  release:
-    name: Publish release ${{ needs.build.outputs.LLVM_PIN }}
-    runs-on: ubuntu-22.04
-    needs: build
-    permissions:
-      contents: write
-    env:
-      LLVM_PIN: ${{ github.event.inputs.llvm_pin || vars.LLVM_PIN || 'llvmorg-21.1.1' }}
-    steps:
-      - name: Download all assets
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
+  # might put this back later, but with more specific name, that is ok-ish on a PR
+  # # ----------  publish a GitHub Release with all zips ----------
+  # release:
+  #   name: Publish release ${{ needs.build.outputs.LLVM_TAG }}
+  #   runs-on: ubuntu-22.04
+  #   needs: build
+  #   permissions:
+  #     contents: write
+  #   env:
+  #     LLVM_TAG: ${{ github.event.inputs.llvm_tag || vars.LLVM_TAG || 'llvmorg-21.1.1' }}
+  #   steps:
+  #     - name: Download all assets
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         path: dist
 
-      - name: List assets
-        run: ls -R dist
+  #     - name: List assets
+  #       run: ls -R dist
 
-      - name: Create/Update release (tag = LLVM_PIN)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.LLVM_PIN }}
-          name: LLVM assets for ${{ env.LLVM_PIN }}
-          body: |
-            Prebuilt LLVM/Clang/LLD/MLIR install trees for Taichi consumption.
-            Tag: ${{ env.LLVM_PIN }}
-          files: |
-            dist/**/taichi-llvm-21-*.zip
-            dist/**/taichi-llvm-21-*.zip.sha256
+  #     - name: Create/Update release (tag = LLVM_TAG)
+  #       uses: softprops/action-gh-release@v2
+  #       with:
+  #         tag_name: ${{ env.LLVM_TAG }}
+  #         name: LLVM assets for ${{ env.LLVM_TAG }}
+  #         body: |
+  #           Prebuilt LLVM/Clang/LLD/MLIR install trees for Taichi consumption.
+  #           Tag: ${{ env.LLVM_TAG }}
+  #         files: |
+  #           dist/**/taichi-llvm-21-*.zip
+  #           dist/**/taichi-llvm-21-*.zip.sha256

@@ -1,18 +1,18 @@
 name: Build-Vulkan-SDK-ARM
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  # disable for now
+  # pull_request:
+  #   branches:
+  #     - main
+  #  paths:
+  #   - '.github/workflows/vulkan-arm.yml'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Vulkan SDK version (e.g., 1.4.304.1)'
+        description: 'Vulkan SDK version (e.g., 1.4.321.1)'
         required: false
-        default: '1.4.304.1'
+        default: '1.4.321.1'
 
 jobs:
   build-linux-arm:
