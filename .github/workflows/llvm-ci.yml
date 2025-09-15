@@ -214,7 +214,7 @@ jobs:
 
   # ----------  publish a GitHub Release with all zips ----------
   release:
-    name: Publish release ${{ needs.build.outputs.LLVM_TAG }}
+    name: Publish release
     runs-on: ubuntu-22.04
     needs: build
     permissions:
