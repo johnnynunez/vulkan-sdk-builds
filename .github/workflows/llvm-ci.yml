@@ -1,7 +1,7 @@
 name: Build LLVM (matrix)
 
 env:
-  DEFAULT_LLVM_VERSION: '21.1.1'
+  DEFAULT_LLVM_VERSION: '15.0.7'
 
 on:
   workflow_dispatch:
@@ -163,7 +163,7 @@ jobs:
             Windows) suffix="windows-amd64" ;;
           esac
           echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
-          echo "zip=taichi-llvm-${{ github.event.inputs.llvm_version }}-$suffix.zip" >> "$GITHUB_OUTPUT"
+          echo "zip=taichi-llvm-${LLVM_VERSION}-$suffix.zip" >> "$GITHUB_OUTPUT"
 
       # ----------  package (Linux/macOS) ----------
       - name: Package (Linux/macOS)
@@ -172,7 +172,7 @@ jobs:
           CMAKE_INSTALL_PREFIX: ${{ steps.prefix.outputs.prefix }}
         run: |
           set -euo pipefail
-          pkgroot="${RUNNER_TEMP}/taichi-llvm-${{ github.event.inputs.llvm_version }}-${{ steps.pkgmeta.outputs.suffix }}"
+          pkgroot="${RUNNER_TEMP}/taichi-llvm-${LLVM_VERSION}-${{ steps.pkgmeta.outputs.suffix }}"
           mkdir -p "$pkgroot"
           # copy install tree
           cp -R "${CMAKE_INSTALL_PREFIX}/." "$pkgroot/"
@@ -185,7 +185,7 @@ jobs:
               -exec "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" --strip-unneeded {} + || true
           fi
           ( cd "${RUNNER_TEMP}" && zip -r "${GITHUB_WORKSPACE}/${{ steps.pkgmeta.outputs.zip }}" \
-              "taichi-llvm-${{ github.event.inputs.llvm_version }}-${{ steps.pkgmeta.outputs.suffix }}" )
+              "taichi-llvm-${LLVM_VERSION}-${{ steps.pkgmeta.outputs.suffix }}" )
           # sha256
           ( cd "${GITHUB_WORKSPACE}" && shasum -a 256 "${{ steps.pkgmeta.outputs.zip }}" > "${{ steps.pkgmeta.outputs.zip }}.sha256" || sha256sum "${{ steps.pkgmeta.outputs.zip }}" > "${{ steps.pkgmeta.outputs.zip }}.sha256" )
 
