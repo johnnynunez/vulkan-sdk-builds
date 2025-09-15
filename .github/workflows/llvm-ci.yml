@@ -1,13 +1,17 @@
 name: Build LLVM (matrix)
 
+env:
+  DEFAULT_LLVM_VERSION: '15.0.7'
+
 on:
   workflow_dispatch:
     inputs:
       llvm_version:
         description: "e.g. 15.0.7, 21.1.1, etc"
         required: false
-        default: 15.0.7
   pull_request:
+    branches:
+      - main
     paths:
      - '.github/workflows/llvm-ci.yml'
 
@@ -28,15 +32,18 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, windows-2025]
 
-    env:
-      # manual input → repo/org var → default
-      LLVM_TAG: llvmorg-${{ github.event.inputs.llvm_version || vars.LLVM_TAG || '15.0.7' }}
-
     defaults:
       run:
         shell: bash
 
     steps:
+      - name: Set env vars
+        id: vars
+        run: |
+          LLVM_VERSION=${{ github.event.inputs.llvm_version || env.DEFAULT_LLVM_VERSION }}
+          echo "LLVM_VERSION=${LLVM_VERSION}" >> $GITHUB_ENV
+          echo "LLVM_TAG=llvmorg-${LLVM_VERSION}" >> $GITHUB_ENV
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -205,33 +212,56 @@ jobs:
             ${{ github.workspace }}/${{ steps.pkgmeta.outputs.zip }}.sha256
           if-no-files-found: error
 
-  # might put this back later, but with more specific name, that is ok-ish on a PR
-  # # ----------  publish a GitHub Release with all zips ----------
-  # release:
-  #   name: Publish release ${{ needs.build.outputs.LLVM_TAG }}
-  #   runs-on: ubuntu-22.04
-  #   needs: build
-  #   permissions:
-  #     contents: write
-  #   env:
-  #     LLVM_TAG: llvmorg-${{ github.event.inputs.llvm_version || vars.LLVM_TAG || '15.0.7' }}
-  #   steps:
-  #     - name: Download all assets
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         path: dist
+  # ----------  publish a GitHub Release with all zips ----------
+  release:
+    name: Publish release ${{ needs.build.outputs.LLVM_TAG }}
+    runs-on: ubuntu-22.04
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Set env vars
+        id: vars
+        run: |
+          LLVM_VERSION=${{ github.event.inputs.llvm_version || env.DEFAULT_LLVM_VERSION }}
+          echo "LLVM_VERSION=${LLVM_VERSION}" >> $GITHUB_ENV
+          echo "LLVM_TAG=llvmorg-${LLVM_VERSION}" >> $GITHUB_ENV
+      - name: Download all assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
 
-  #     - name: List assets
-  #       run: ls -R dist
+      - name: List assets
+        run: ls -R dist
 
-  #     - name: Create/Update release (tag = LLVM_TAG)
-  #       uses: softprops/action-gh-release@v2
-  #       with:
-  #         tag_name: ${{ env.LLVM_TAG }}
-  #         name: LLVM assets for ${{ env.LLVM_TAG }}
-  #         body: |
-  #           Prebuilt LLVM/Clang/LLD/MLIR install trees for Taichi consumption.
-  #           Tag: ${{ env.LLVM_TAG }}
-  #         files: |
-  #           dist/**/taichi-llvm-${{ github.event.inputs.llvm_version }}-*.zip
-  #           dist/**/taichi-llvm-${{ github.event.inputs.llvm_version }}-*.zip.sha256
+      - name: Set tag name
+        id: set_tag
+        run: |
+          # Get current date/time in UTC, format YYYYMMDDHHMM
+          DATE=$(date -u +'%Y%m%d%H%M')
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=llvm-${LLVM_VERSION}-${DATE}" >> $GITHUB_OUTPUT
+          else
+            PR_BRANCH="${{ github.head_ref }}"
+            PR_BRANCH_CLEAN=$(echo "$PR_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]-')
+            echo "tag=llvm-${LLVM_VERSION}-${PR_BRANCH_CLEAN}-${DATE}" >> $GITHUB_OUTPUT
+          fi
+      - name: Set prerelease flag
+        id: set_prerelease
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create/Update release (tag = LLVM_TAG)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.set_tag.outputs.tag }}
+          name: ${{ steps.set_tag.outputs.tag }}
+          prerelease: ${{ steps.set_prerelease.outputs.is_prerelease }}
+          body: |
+            Prebuilt LLVM/Clang install trees for GsTaichi consumption.
+          files: |
+            dist/**
