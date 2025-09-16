@@ -1,18 +1,17 @@
 name: Build-Vulkan-SDK-ARM
 
+env:
+  DEFAULT_VULKAN_SDK_VERSION: '1.4.321.1'
+
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
   workflow_dispatch:
     inputs:
       version:
-        description: 'Vulkan SDK version (e.g., 1.4.304.1)'
+        description: 'Vulkan SDK version (e.g., 1.4.321.1)'
         required: false
-        default: '1.4.304.1'
 
 jobs:
   build-linux-arm:
@@ -28,13 +27,10 @@ jobs:
       - name: Set version variable
         id: vars
         run: |
-          if [[ "${{ github.event.inputs.version }}" == "latest" || -z "${{ github.event.inputs.version }}" ]]; then
-            echo "SDK_URL=https://sdk.lunarg.com/sdk/download/latest/linux/vulkan-sdk.tar.xz" >> $GITHUB_ENV
-            echo "Using default SDK version: latest"
-          else
-            echo "SDK_URL=https://sdk.lunarg.com/sdk/download/${{ github.event.inputs.version }}/linux/vulkansdk-linux-arm64-${{ github.event.inputs.version }}.tar.xz" >> $GITHUB_ENV
-            echo "Using specified SDK version: ${{ github.event.inputs.version }}"
-          fi
+          VERSION=${{ github.event.inputs.version || env.DEFAULT_VULKAN_SDK_VERSION }}
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "SDK_URL=https://sdk.lunarg.com/sdk/download/${VERSION}/linux/vulkan-sdk.tar.xz" >> $GITHUB_ENV
+          echo "Using specified SDK version: ${VERSION}"
 
       - name: Update APT
         run: sudo apt update
@@ -63,7 +59,7 @@ jobs:
 
       - name: Extract SDK and Determine SDK Directory
         run: |
-          tar -xJf vulkan-sdk.tar.xz
+          tar -xf vulkan-sdk.tar.xz
           SDK_DIR=$(find . -maxdepth 1 -type d -name '1.*' | head -n 1)
           echo "SDK_DIR=${SDK_DIR}" >> $GITHUB_ENV
           echo "SDK_VERSION=$(basename ${SDK_DIR})" >> $GITHUB_ENV
@@ -81,10 +77,59 @@ jobs:
           elif [[ "${{ matrix.os }}" == "ubuntu-24.04-arm" ]]; then
             CC=/usr/bin/gcc-14 CXX=/usr/bin/g++-14  ./vulkansdk --maxjobs vulkan-loader vulkan-validationlayers vulkan-extensionlayer
           fi
+          tar -cJf ../vulkansdk-${{ matrix.os }}-${{ env.SDK_VERSION }}.tar.xz .
 
-      # When an Artifact is uploaded, all the files are assembled into an immutable Zip archive. There is currently no way to download artifacts in a format other than a Zip or to download individual artifact contents.
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vulkansdk-linux-arm64-${{ matrix.os }}-${{ env.SDK_VERSION }}
-          path: ${{ env.SDK_VERSION }}
+          name: vulkansdk-${{ matrix.os }}-${{ env.SDK_VERSION }}
+          path: vulkansdk-${{ matrix.os }}-${{ env.SDK_VERSION }}.tar.xz
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-22.04
+    needs: build-linux-arm
+    permissions:
+      contents: write
+    steps:
+      - name: Download all assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List assets
+        run: ls -R dist
+
+      - name: Set tag name
+        id: set_tag
+        run: |
+          # Get current date/time in UTC, format YYYYMMDDHHMM
+          DATE=$(date -u +'%Y%m%d%H%M')
+          VERSION="${{ github.event.inputs.version || env.DEFAULT_VULKAN_SDK_VERSION }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=vulkan-sdk-${VERSION}-${DATE}" >> $GITHUB_OUTPUT
+          else
+            PR_BRANCH="${{ github.head_ref }}"
+            PR_BRANCH_CLEAN=$(echo "$PR_BRANCH" | tr '/' '-' | tr -cd '[:alnum:]-')
+            echo "tag=vulkan-sdk-${VERSION}-${PR_BRANCH_CLEAN}-${DATE}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set prerelease flag
+        id: set_prerelease
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create/Update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.set_tag.outputs.tag }}
+          prerelease: ${{ steps.set_prerelease.outputs.is_prerelease }}
+          name: ${{ steps.set_tag.outputs.tag }}
+          body: |
+            Vulkan SDK build for GsTaichi.
+          files: |
+            dist/**
