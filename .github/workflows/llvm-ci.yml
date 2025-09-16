@@ -1,7 +1,7 @@
 name: Build LLVM (matrix)
 
 env:
-  DEFAULT_LLVM_VERSION: '21.1.1'
+  DEFAULT_LLVM_VERSION: '15.0.7'
 
 on:
   workflow_dispatch:
@@ -112,6 +112,7 @@ jobs:
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DLLVM_ENABLE_PROJECTS="clang" \
             -DLLVM_ENABLE_RTTI:BOOL=ON \
+            -DLLVM_ENABLE_ZSTD=OFF \
             -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" \
             -DLLVM_ENABLE_TERMINFO=OFF
 
@@ -141,6 +142,7 @@ jobs:
             -DLLVM_ENABLE_ASSERTIONS=ON `
             -DLLVM_ENABLE_PROJECTS="clang" `
             -DLLVM_ENABLE_RTTI:BOOL=ON `
+            -DLLVM_ENABLE_ZSTD=OFF `
             -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" `
             -DLLVM_ENABLE_TERMINFO=OFF
 
