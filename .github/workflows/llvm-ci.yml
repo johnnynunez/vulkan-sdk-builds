@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, windows-2025]
-    container: ${{ startsWith(matrix.os, 'ubuntu-') && 'tcardonne/github-runner:ubuntu-20.04' || '' }}
+    container: ${{ matrix.os == 'ubuntu-22.04' && 'tcardonne/github-runner:ubuntu-20.04' || '' }}
 
     defaults:
       run:
