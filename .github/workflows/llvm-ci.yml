@@ -106,7 +106,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${CMAKE_INSTALL_PREFIX}" \
             -DLLVM_ENABLE_ASSERTIONS=ON \
-            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DLLVM_ENABLE_PROJECTS="clang;lld" \
             -DLLVM_ENABLE_RTTI:BOOL=ON \
             -DLLVM_ENABLE_ZSTD=OFF \
             -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" \
@@ -136,7 +136,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX="$env:CMAKE_INSTALL_PREFIX" `
             -DLLVM_ENABLE_ASSERTIONS=ON `
-            -DLLVM_ENABLE_PROJECTS="clang" `
+            -DLLVM_ENABLE_PROJECTS="clang;lld" `
             -DLLVM_ENABLE_RTTI:BOOL=ON `
             -DLLVM_ENABLE_ZSTD=OFF `
             -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" `
