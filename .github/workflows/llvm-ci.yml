@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, windows-2025]
-    container: ${{ startsWith(matrix.os, 'ubuntu-') && 'quay.io/pypa/manylinux_2_28_x86_64:latest' || '' }}
+    container: ${{ startsWith(matrix.os, 'ubuntu-') && 'tcardonne/github-runner:ubuntu-20.04' || '' }}
 
     defaults:
       run:
@@ -57,8 +57,8 @@ jobs:
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends git cmake ninja-build build-essential zip
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends git cmake ninja-build build-essential zip
           python -m pip install --upgrade pip
 
       - name: Install prerequisites (macOS)
