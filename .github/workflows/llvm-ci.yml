@@ -62,12 +62,12 @@ jobs:
           # yum install -y git cmake ninja-build gcc gcc-c++ make zip
       #     # python -m pip install --upgrade pip
 
-      - name: Install prerequisites (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew update
-          brew install cmake ninja || true
-          python3 -m pip install --upgrade pip
+      # - name: Install prerequisites (macOS)
+      #   if: runner.os == 'macOS'
+      #   run: |
+      #     brew update
+      #     brew install cmake ninja || true
+      #     python3 -m pip install --upgrade pip
 
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
