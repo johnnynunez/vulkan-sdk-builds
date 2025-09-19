@@ -44,10 +44,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+      # - name: Set up Python
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.10'
 
       # --- calm the git default-branch hint ---
       - name: Silence git default-branch hint
@@ -57,9 +57,10 @@ jobs:
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
         run: |
-          # sudo apt-get update
-          yum install -y git cmake ninja-build gcc gcc-c++ make zip
-          python -m pip install --upgrade pip
+          yum install -y git cmake ninja-build
+      #     # sudo apt-get update
+          # yum install -y git cmake ninja-build gcc gcc-c++ make zip
+      #     # python -m pip install --upgrade pip
 
       - name: Install prerequisites (macOS)
         if: runner.os == 'macOS'
