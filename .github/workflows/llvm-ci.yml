@@ -41,32 +41,11 @@ jobs:
           echo "LLVM_TAG=llvmorg-${LLVM_VERSION}" >> $GITHUB_ENV
 
       - name: Checkout
-        uses: actions/checkout@v4
-
-      # - name: Set up Python
-      #   uses: actions/setup-python@v5
-      #   with:
-      #     python-version: '3.10'
+        uses: actions/checkout@v3
 
       # --- calm the git default-branch hint ---
       - name: Silence git default-branch hint
         run: git config --global init.defaultBranch main
-
-      # ---------- Prereqs ----------
-      # - name: Install prerequisites (Linux)
-      #   if: runner.os == 'Linux'
-      #   run: |
-      #     yum install -y git cmake ninja-build
-      #     # sudo apt-get update
-          # yum install -y git cmake ninja-build gcc gcc-c++ make zip
-      #     # python -m pip install --upgrade pip
-
-      # - name: Install prerequisites (macOS)
-        # if: runner.os == 'macOS'
-      #   run: |
-      #     brew update
-      #     brew install cmake ninja || true
-      #     python3 -m pip install --upgrade pip
 
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
@@ -203,7 +182,7 @@ jobs:
 
       # ---------- Upload artifacts (for aggregator) ----------
       - name: Upload packaged asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.pkgmeta.outputs.zip }}
           path: |
