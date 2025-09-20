@@ -51,6 +51,7 @@ jobs:
       - name: Install prerequisites (Linux)
         if: runner.os == 'Linux'
         run: |
+          yum install -y zip
           export PATH=/opt/python/cp310-cp310/bin:$PATH
           pip install ninja
           ln -s /opt/python/cp310-cp310/bin/ninja /usr/bin/ninja-build
@@ -62,6 +63,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install ninja cmake
           git config --global core.autocrlf false
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_BuildTools.exe" -OutFile "vs.exe"
+          .\vs.exe --passive --wait --norestart --includeRecommended --add Microsoft.VisualStudio.Workload.VCTools
 
       # ---------- Compute install prefix ----------
       - name: Compute install prefix
@@ -113,6 +116,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Write-Host "Using LLVM_TAG=$env:LLVM_TAG"
 
+          $vsPath = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
+          cmd /c "`"$vsPath`" && set" | ForEach-Object {
+              if ($_ -match '^([^=]+)=(.*)') {
+                  [Environment]::SetEnvironmentVariable($matches[1], $matches[2])
+              }
+          }
+
           New-Item -ItemType Directory -Force -Path llvm-project | Out-Null
           Set-Location llvm-project
           git init
@@ -120,7 +130,7 @@ jobs:
           git fetch --depth 1 origin "$env:LLVM_TAG"
           git checkout --detach FETCH_HEAD
 
-          cmake -S llvm -B build -G "Ninja" `
+          cmake -S llvm -B build -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX="$env:CMAKE_INSTALL_PREFIX" `
             -DLLVM_ENABLE_PROJECTS="clang;lld" `
@@ -128,7 +138,8 @@ jobs:
             -DLLVM_ENABLE_ZLIB=OFF `
             -DLLVM_ENABLE_ZSTD=OFF `
             -DLLVM_TARGETS_TO_BUILD="host;NVPTX;AMDGPU" `
-            -DLLVM_ENABLE_TERMINFO=OFF
+            -DLLVM_ENABLE_TERMINFO=OFF `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL"
 
           cmake --build build --target all
           cmake --build build --target install
