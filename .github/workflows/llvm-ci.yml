@@ -41,11 +41,26 @@ jobs:
           echo "LLVM_TAG=llvmorg-${LLVM_VERSION}" >> $GITHUB_ENV
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # --- calm the git default-branch hint ---
       - name: Silence git default-branch hint
         run: git config --global init.defaultBranch main
+
+      # ---------- Prereqs ----------
+      - name: Install prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          export PATH=/opt/python/cp310-cp310/bin:$PATH
+          pip install ninja
+          ln -s /opt/python/cp310-cp310/bin/ninja /usr/bin/ninja-build
+    
+      # - name: Install prerequisites (macOS)
+        # if: runner.os == 'macOS'
+      #   run: |
+      #     brew update
+      #     brew install cmake ninja || true
+      #     python3 -m pip install --upgrade pip
 
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
@@ -182,7 +197,7 @@ jobs:
 
       # ---------- Upload artifacts (for aggregator) ----------
       - name: Upload packaged asset
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.pkgmeta.outputs.zip }}
           path: |
