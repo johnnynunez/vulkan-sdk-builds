@@ -134,7 +134,7 @@ jobs:
           cmake -S llvm -B build -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX="$env:CMAKE_INSTALL_PREFIX" `
-            -DLLVM_ENABLE_PROJECTS="" `
+            -DLLVM_ENABLE_PROJECTS="clang;lld" `
             -DLLVM_ENABLE_RTTI:BOOL=ON `
             -DLLVM_ENABLE_LIBXML2=OFF `
             -DLLVM_ENABLE_ZLIB=OFF `
