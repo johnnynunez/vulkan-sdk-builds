@@ -27,8 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, windows-2025]
-    container: ${{ matrix.os == 'ubuntu-22.04' && 'quay.io/pypa/manylinux_2_28_x86_64:latest' || '' }}
-
+    container: ${{ (matrix.os == 'ubuntu-22.04' && 'quay.io/pypa/manylinux2014_x86_64:latest') || (matrix.os == 'ubuntu-22.04-arm' && 'quay.io/pypa/manylinux_2_28_aarch64:latest') || '' }}  
     defaults:
       run:
         shell: bash
@@ -54,16 +53,16 @@ jobs:
         run: git config --global init.defaultBranch main
 
       # ---------- Prereqs ----------
-      - name: Install prerequisites (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          yum install -y git cmake ninja-build
+      # - name: Install prerequisites (Linux)
+      #   if: runner.os == 'Linux'
+      #   run: |
+      #     yum install -y git cmake ninja-build
       #     # sudo apt-get update
           # yum install -y git cmake ninja-build gcc gcc-c++ make zip
       #     # python -m pip install --upgrade pip
 
       # - name: Install prerequisites (macOS)
-      #   if: runner.os == 'macOS'
+        # if: runner.os == 'macOS'
       #   run: |
       #     brew update
       #     brew install cmake ninja || true
