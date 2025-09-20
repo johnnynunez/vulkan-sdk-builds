@@ -143,8 +143,8 @@ jobs:
             -DLLVM_ENABLE_TERMINFO=OFF `
             -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL"
 
-          cmake --build build --target all
-          cmake --build build --target install
+          cmake --build build --config Release --target ALL_BUILD
+          cmake --build build --config Release --target INSTALL
 
       # ----------  compute package naming ----------
       - name: Compute package name
