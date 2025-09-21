@@ -64,6 +64,14 @@ jobs:
           node --version
           npm --version
 
+      - name: Upload packaged asset
+        uses: actions/upload-artifact@v3
+        with:
+          name: foo
+          path: |
+            bar
+          if-no-files-found: error
+
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -74,9 +82,9 @@ jobs:
           Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vs_BuildTools.exe" -OutFile "vs.exe"
           .\vs.exe --passive --wait --norestart --includeRecommended --add Microsoft.VisualStudio.Workload.VCTools
 
-      # ---------- Checkout ----------
-      - name: Checkout
-        uses: actions/checkout@v3
+      # # ---------- Checkout ----------
+      # - name: Checkout
+      #   uses: actions/checkout@v3
 
       # ---------- Compute install prefix ----------
       - name: Compute install prefix
