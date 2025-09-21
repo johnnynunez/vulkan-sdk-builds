@@ -56,6 +56,11 @@ jobs:
           pip install ninja
           ln -s /opt/python/cp310-cp310/bin/ninja /usr/bin/ninja-build
     
+          # Install Node.js 20 for upload-artifact@v4
+          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ -C /opt/
+          ln -sf /opt/node-v20.11.1-linux-x64/bin/node /usr/bin/node
+          ln -sf /opt/node-v20.11.1-linux-x64/bin/npm /usr/bin/npm
+
       - name: Install prerequisites (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -203,7 +208,7 @@ jobs:
 
       # ---------- Upload artifacts (for aggregator) ----------
       - name: Upload packaged asset
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.pkgmeta.outputs.zip }}
           path: |
@@ -226,7 +231,7 @@ jobs:
           echo "LLVM_VERSION=${LLVM_VERSION}" >> $GITHUB_ENV
           echo "LLVM_TAG=llvmorg-${LLVM_VERSION}" >> $GITHUB_ENV
       - name: Download all assets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: dist
 
