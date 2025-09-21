@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15, windows-2025]
-    container: ${{ (matrix.os == 'ubuntu-22.04' && 'quay.io/pypa/manylinux2014_64:latest') || (matrix.os == 'ubuntu-22.04-arm' && 'quay.io/pypa/manylinux2014_aarch64:latest') || '' }}  
+    container: ${{ (matrix.os == 'ubuntu-22.04' && 'quay.io/pypa/manylinux2014_x86_64:latest') || (matrix.os == 'ubuntu-22.04-arm' && 'quay.io/pypa/manylinux2014_aarch64:latest') || '' }}  
     defaults:
       run:
         shell: bash
@@ -40,8 +40,8 @@ jobs:
           echo "LLVM_VERSION=${LLVM_VERSION}" >> $GITHUB_ENV
           echo "LLVM_TAG=llvmorg-${LLVM_VERSION}" >> $GITHUB_ENV
 
-      - name: Checkout
-        uses: actions/checkout@v4
+      # - name: Checkout
+      #   uses: actions/checkout@v4
 
       # --- calm the git default-branch hint ---
       - name: Silence git default-branch hint
@@ -203,7 +203,7 @@ jobs:
 
       # ---------- Upload artifacts (for aggregator) ----------
       - name: Upload packaged asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.pkgmeta.outputs.zip }}
           path: |
@@ -226,7 +226,7 @@ jobs:
           echo "LLVM_VERSION=${LLVM_VERSION}" >> $GITHUB_ENV
           echo "LLVM_TAG=llvmorg-${LLVM_VERSION}" >> $GITHUB_ENV
       - name: Download all assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           path: dist
 
