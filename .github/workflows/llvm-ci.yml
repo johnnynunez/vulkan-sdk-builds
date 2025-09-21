@@ -40,8 +40,8 @@ jobs:
           echo "LLVM_VERSION=${LLVM_VERSION}" >> $GITHUB_ENV
           echo "LLVM_TAG=llvmorg-${LLVM_VERSION}" >> $GITHUB_ENV
 
-      # - name: Checkout
-      #   uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       # --- calm the git default-branch hint ---
       - name: Silence git default-branch hint
