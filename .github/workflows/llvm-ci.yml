@@ -1,7 +1,7 @@
 name: Build LLVM (matrix)
 
 env:
-  DEFAULT_LLVM_VERSION: '15.0.7'
+  DEFAULT_LLVM_VERSION: '16.0.6'
 
 on:
   workflow_dispatch:
