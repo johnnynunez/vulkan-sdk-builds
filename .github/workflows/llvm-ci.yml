@@ -67,7 +67,7 @@ jobs:
       - name: Compute install prefix
         id: prefix
         run: |
-          echo "prefix=${RUNNER_TEMP}\\llvm-install" >> "$GITHUB_OUTPUT"
+          echo "prefix=${RUNNER_TEMP}/llvm-install" >> "$GITHUB_OUTPUT"
 
       # ---------- Build *nix ----------
       - name: Build (Linux & macOS)
