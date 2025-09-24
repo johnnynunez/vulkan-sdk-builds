@@ -1,7 +1,7 @@
 name: Build LLVM (matrix)
 
 env:
-  DEFAULT_LLVM_VERSION: '21.1.1'
+  DEFAULT_LLVM_VERSION: '15.0.7'
 
 on:
   workflow_dispatch:
@@ -30,7 +30,7 @@ jobs:
     container: ${{ (matrix.os == 'ubuntu-22.04' && 'quay.io/pypa/manylinux_2_28_x86_64:latest') || (matrix.os == 'ubuntu-22.04-arm' && 'quay.io/pypa/manylinux_2_34_aarch64:latest') || '' }}  
     defaults:
       run:
-        shell: bash
+        shell: bash -ieo pipefail
 
     steps:
       - name: Set env vars
@@ -67,12 +67,7 @@ jobs:
       - name: Compute install prefix
         id: prefix
         run: |
-          set -euo pipefail
-          if [ "${RUNNER_OS}" = "Windows" ]; then
-            echo "prefix=${RUNNER_TEMP}\\llvm-install" >> "$GITHUB_OUTPUT"
-          else
-            echo "prefix=${RUNNER_TEMP}/llvm-install" >> "$GITHUB_OUTPUT"
-          fi
+          echo "prefix=${RUNNER_TEMP}\\llvm-install" >> "$GITHUB_OUTPUT"
 
       # ---------- Build *nix ----------
       - name: Build (Linux & macOS)
@@ -80,7 +75,6 @@ jobs:
         env:
           CMAKE_INSTALL_PREFIX: ${{ steps.prefix.outputs.prefix }}
         run: |
-          set -euo pipefail
           echo "Using LLVM_TAG=${LLVM_TAG}"
 
           mkdir -p llvm-project
@@ -146,9 +140,7 @@ jobs:
       # ----------  compute package naming ----------
       - name: Compute package name
         id: pkgmeta
-        shell: bash
         run: |
-          set -euo pipefail
           os="${RUNNER_OS}"
           arch="$(uname -m || true)"
           case "$os" in
@@ -167,7 +159,6 @@ jobs:
         env:
           CMAKE_INSTALL_PREFIX: ${{ steps.prefix.outputs.prefix }}
         run: |
-          set -euo pipefail
           pkgroot="${RUNNER_TEMP}/taichi-llvm-${LLVM_VERSION}-${{ steps.pkgmeta.outputs.suffix }}"
           mkdir -p "$pkgroot"
           # copy install tree
@@ -176,9 +167,9 @@ jobs:
           cp llvm-project/LICENSE.TXT "$pkgroot/LLVM-LICENSE.txt" || true
           # optional strip to shrink size
           if [ -x "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" ]; then
-            find "$pkgroot/bin" -type f -exec "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" --strip-unneeded {} + || true
+            find "$pkgroot/bin" -type f -exec "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" --strip-unneeded {} +
             find "$pkgroot/lib" -type f \( -name "*.so*" -o -name "*.dylib" -o -name "*.a" \) \
-              -exec "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" --strip-unneeded {} + || true
+              -exec "${CMAKE_INSTALL_PREFIX}/bin/llvm-strip" --strip-unneeded {} +
           fi
           ( cd "${RUNNER_TEMP}" && zip -r "${GITHUB_WORKSPACE}/${{ steps.pkgmeta.outputs.zip }}" \
               "taichi-llvm-${LLVM_VERSION}-${{ steps.pkgmeta.outputs.suffix }}" )
