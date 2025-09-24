@@ -30,7 +30,7 @@ jobs:
     container: ${{ (matrix.os == 'ubuntu-22.04' && 'quay.io/pypa/manylinux_2_28_x86_64:latest') || (matrix.os == 'ubuntu-22.04-arm' && 'quay.io/pypa/manylinux_2_34_aarch64:latest') || '' }}  
     defaults:
       run:
-        shell: bash -ieo pipefail
+        shell: bash -ieo pipefail {0}
 
     steps:
       - name: Set env vars
